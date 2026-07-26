@@ -78,9 +78,9 @@ export default function HomePage() {
 
               <div className="mt-10 grid grid-cols-3 gap-6 max-w-lg">
                 {[
-                  { v: '84K+', l: 'Learners' },
+                  { v: '84K+', l: 'Indian Learners' },
                   { v: '4.8★', l: 'Avg Rating' },
-                  { v: '96%', l: 'Placement' },
+                  { v: '96%', l: 'Placement Rate' },
                 ].map(s => (
                   <div key={s.l}>
                     <div className="text-2xl md:text-3xl font-extrabold gradient-text">{s.v}</div>
@@ -223,7 +223,7 @@ export default function HomePage() {
       <section className="py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-extrabold">Why <span className="gradient-text">DevLearn Pro</span></h2>
+            <h2 className="text-3xl md:text-4xl font-extrabold">Why <span className="gradient-text">IntegrationX Pro</span></h2>
             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">We do things differently. Small cohorts. World-class instructors. Real projects that go on your GitHub.</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -291,7 +291,7 @@ export default function HomePage() {
             <div className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full bg-purple-500 blur-3xl opacity-30" />
             <Building2 className="w-10 h-10 text-purple-500 mb-4" />
             <h3 className="text-2xl font-extrabold mb-3">Corporate <span className="gradient-text">Training</span></h3>
-            <p className="text-muted-foreground text-sm leading-relaxed mb-5">Upskill your entire team with customized cohorts. Used by Deloitte, TCS, Accenture, Infosys and 40+ enterprises to build world-class engineering teams.</p>
+            <p className="text-muted-foreground text-sm leading-relaxed mb-5">Upskill your entire SAP & IT teams with customized cohorts. Trusted by TCS, Infosys, Wipro, HCL, Tech Mahindra, Deloitte India, Accenture India and 40+ enterprises. GST-compliant invoices.</p>
             <div className="flex flex-wrap gap-2">
               {['Custom Curriculum','Dedicated Success Manager','LMS Integration','Progress Reports','SLA-backed'].map(x => (
                 <span key={x} className="text-xs font-medium px-3 py-1.5 rounded-full bg-purple-500/10 text-purple-500 border border-purple-500/20">{x}</span>
@@ -328,12 +328,12 @@ export default function HomePage() {
             <div className="relative">
               <Sparkles className="w-10 h-10 mx-auto text-primary mb-4" />
               <h2 className="text-3xl md:text-4xl font-extrabold">Get <span className="gradient-text">Weekly Insights</span></h2>
-              <p className="text-muted-foreground mt-3 max-w-lg mx-auto">Curated IT roadmaps, live batch launches, career tips — delivered every Sunday. Plus a free SAP CPI cheatsheet on signup.</p>
+              <p className="text-muted-foreground mt-3 max-w-lg mx-auto">Curated SAP roadmaps, live batch launches, career tips, salary benchmarks for Indian market — delivered every Sunday. Plus a free SAP CPI + BTP cheatsheet on signup.</p>
               <form onSubmit={subscribe} className="mt-6 flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
                 <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" type="email" required className="h-12 bg-background/50" />
                 <Button type="submit" className="gradient-primary text-white border-0 h-12 px-6 font-semibold">Subscribe</Button>
               </form>
-              <p className="text-xs text-muted-foreground mt-3">Join 42,000+ IT professionals. Unsubscribe anytime.</p>
+              <p className="text-xs text-muted-foreground mt-3">Join 42,000+ SAP & IT professionals from Bengaluru, Hyderabad, Pune, Mumbai, Chennai, Delhi NCR. Unsubscribe anytime.</p>
             </div>
           </div>
         </div>

@@ -135,7 +135,7 @@ export default function Dashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="text-[10px] font-bold uppercase text-primary">{w.course.categoryName}</div>
                       <h4 className="font-semibold text-sm line-clamp-1">{w.course.title}</h4>
-                      <div className="text-xs text-muted-foreground">${w.course.price} · {w.course.duration}</div>
+                      <div className="text-xs text-muted-foreground">₹{w.course.price.toLocaleString('en-IN')} · {w.course.duration}</div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </Link>

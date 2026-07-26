@@ -58,8 +58,8 @@ export default function CourseCard({ course, index = 0, compact = false }) {
             </div>
             <div className="flex items-center justify-between pt-3 border-t border-border/50">
               <div className="flex items-baseline gap-2">
-                <span className="text-lg font-bold gradient-text">${course.price}</span>
-                <span className="text-xs text-muted-foreground line-through">${course.originalPrice}</span>
+                <span className="text-lg font-bold gradient-text">₹{course.price.toLocaleString('en-IN')}</span>
+                <span className="text-xs text-muted-foreground line-through">₹{course.originalPrice.toLocaleString('en-IN')}</span>
               </div>
               <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md">{course.discount}% OFF</span>
             </div>

@@ -104,10 +104,11 @@ export default function CourseDetail({ params }) {
               </div>
               <div className="p-5">
                 <div className="flex items-baseline gap-2 mb-3">
-                  <span className="text-3xl font-extrabold gradient-text">${course.price}</span>
-                  <span className="text-sm text-muted-foreground line-through">${course.originalPrice}</span>
+                  <span className="text-3xl font-extrabold gradient-text">₹{course.price.toLocaleString('en-IN')}</span>
+                  <span className="text-sm text-muted-foreground line-through">₹{course.originalPrice.toLocaleString('en-IN')}</span>
                   <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded ml-1">{course.discount}% OFF</span>
                 </div>
+                <p className="text-xs text-muted-foreground mb-1">Inclusive of GST · EMI from ₹{Math.round(course.price/12).toLocaleString('en-IN')}/mo</p>
                 <p className="text-xs text-red-500 font-semibold mb-4">⏰ Sale ends in 23:45:12</p>
                 {enrolled ? (
                   <Button asChild className="w-full h-12 gradient-primary text-white border-0 font-bold">
@@ -138,7 +139,7 @@ export default function CourseDetail({ params }) {
                 </div>
               </div>
             </div>
-            <p className="text-center text-xs text-muted-foreground mt-3">30-Day Money-Back Guarantee · Full lifetime access</p>
+                <p className="text-center text-xs text-muted-foreground mt-3">30-Day Money-Back Guarantee · Full lifetime access · UPI · Cards · Net Banking · EMI</p>
           </motion.div>
         </div>
       </section>
