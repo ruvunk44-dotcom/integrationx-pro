@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { BookOpen, Award, Heart, Download, Clock, TrendingUp, PlayCircle, ChevronRight, Trophy, Target, Flame, Calendar } from 'lucide-react'
+import { BookOpen, Award, Heart, Download, Clock, TrendingUp, PlayCircle, ChevronRight, Trophy, Target, Flame, Calendar, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { motion } from 'framer-motion'
@@ -116,6 +116,11 @@ export default function Dashboard() {
                         <span className="text-xs text-muted-foreground flex-1">{e.course.instructor.name}</span>
                         <PlayCircle className="w-5 h-5 text-primary" />
                       </div>
+                      {e.progress === 100 && (
+                        <a href={`/api/certificate/${e.courseSlug}`} target="_blank" rel="noreferrer" onClick={(ev) => ev.stopPropagation()} className="mt-3 flex items-center justify-center gap-2 h-9 rounded-lg gradient-primary text-white text-xs font-bold shadow-lg shadow-primary/30 hover:opacity-90 transition">
+                          <Award className="w-4 h-4" /> Download Certificate
+                        </a>
+                      )}
                     </div>
                   </Link>
                 </motion.div>
@@ -183,6 +188,48 @@ export default function Dashboard() {
           </div>
         </div>
       </section>
+
+      {payments.length > 0 && (
+        <section className="pb-20">
+          <div className="mx-auto max-w-7xl px-4">
+            <div className="glass rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-5">
+                <FileText className="w-5 h-5 text-primary" />
+                <h2 className="text-xl font-bold">Payment History & Invoices</h2>
+                <span className="text-xs text-muted-foreground ml-auto">GST invoices auto-generated · India-compliant</span>
+              </div>
+              <div className="overflow-x-auto -mx-2">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <tr className="border-b border-border/50">
+                      <th className="p-3 font-semibold">Date</th>
+                      <th className="p-3 font-semibold">Course</th>
+                      <th className="p-3 font-semibold">Payment ID</th>
+                      <th className="p-3 font-semibold text-right">Amount</th>
+                      <th className="p-3 font-semibold text-right">Invoice</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map(p => (
+                      <tr key={p.razorpayPaymentId} className="border-b border-border/30 hover:bg-accent/20 transition">
+                        <td className="p-3 text-muted-foreground whitespace-nowrap">{new Date(p.verifiedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                        <td className="p-3 font-medium max-w-xs truncate">{p.courseTitle}</td>
+                        <td className="p-3 font-mono text-xs text-muted-foreground">{p.razorpayPaymentId?.slice(0, 22)}</td>
+                        <td className="p-3 text-right font-bold">₹{(p.amountRupees || 0).toLocaleString('en-IN')}</td>
+                        <td className="p-3 text-right">
+                          <a href={`/api/invoice/${p.razorpayPaymentId}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass text-xs font-semibold hover:bg-primary/10 hover:text-primary transition">
+                            <Download className="w-3.5 h-3.5" /> Invoice
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       <SiteFooter />
     </div>

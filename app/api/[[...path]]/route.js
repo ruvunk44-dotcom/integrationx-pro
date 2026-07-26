@@ -5,6 +5,7 @@ import Razorpay from 'razorpay'
 import { getDb } from '@/lib/mongodb'
 import { COURSES, CATEGORIES, TESTIMONIALS, LIVE_BATCHES, FAQS, getCourseBySlug } from '@/lib/courses-data'
 import { hashPassword, verifyPassword, signToken, verifyToken, cookieOptions, COOKIE, newUserId, readSessionFromRequest, sanitizeUser } from '@/lib/auth'
+import { makeCertificatePdf, makeInvoicePdf } from '@/lib/pdfs'
 
 const json = (data, status = 200) => NextResponse.json(data, { status })
 
@@ -332,6 +333,84 @@ async function handler(request, ctx) {
       const list = await db.collection('payments').find({ userId: auth.userId }).sort({ verifiedAt: -1 }).limit(50).toArray()
       return json({ payments: list.map(p => ({ ...p, _id: undefined })) })
     }
+
+    // ============ CERTIFICATES ============
+    // GET /api/certificate/[courseSlug]  \u2014 generates PDF (only if 100% complete)
+    if (method === 'GET' && seg.startsWith('certificate/')) {
+      const auth = await requireAuth(request); if (auth.error) return auth.error
+      const courseSlug = seg.slice('certificate/'.length)
+      const course = getCourseBySlug(courseSlug)
+      if (!course) return json({ error: 'Course not found' }, 404)
+      const db = await getDb()
+      const enrolment = await db.collection('enrollments').findOne({ userId: auth.userId, courseSlug })
+      if (!enrolment) return json({ error: 'You are not enrolled in this course' }, 403)
+      if ((enrolment.progress || 0) < 100) return json({ error: 'Complete 100% of the course to unlock the certificate' }, 403)
+      // reuse or create cert record
+      let cert = await db.collection('certificates').findOne({ userId: auth.userId, courseSlug })
+      const user = await db.collection('users').findOne({ id: auth.userId })
+      if (!cert) {
+        cert = { id: 'IXP-' + uuidv4().replace(/-/g, '').slice(0, 12).toUpperCase(), userId: auth.userId, courseSlug, courseTitle: course.title, userName: user?.name || user?.email || 'Learner', instructor: course.instructor.name, issuedAt: new Date().toISOString() }
+        await db.collection('certificates').insertOne(cert)
+      }
+      const verifyUrl = `${baseUrl(request)}/verify/${cert.id}`
+      const bytes = await makeCertificatePdf({
+        name: cert.userName,
+        courseTitle: cert.courseTitle,
+        instructor: cert.instructor,
+        certId: cert.id,
+        issueDate: new Date(cert.issuedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        verifyUrl,
+      })
+      return new NextResponse(Buffer.from(bytes), {
+        status: 200,
+        headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="IntegrationXPro-${cert.id}.pdf"` },
+      })
+    }
+
+    // GET /api/verify/[certId]  \u2014 public verification data
+    if (method === 'GET' && seg.startsWith('verify/')) {
+      const certId = seg.slice('verify/'.length)
+      const db = await getDb()
+      const cert = await db.collection('certificates').findOne({ id: certId })
+      if (!cert) return json({ valid: false, error: 'Certificate not found or invalid' }, 404)
+      return json({
+        valid: true,
+        certificate: {
+          id: cert.id,
+          userName: cert.userName,
+          courseTitle: cert.courseTitle,
+          instructor: cert.instructor,
+          issuedAt: cert.issuedAt,
+          issuedBy: 'IntegrationX Pro',
+        },
+      })
+    }
+
+    // GET /api/invoice/[paymentId]  \u2014 GST invoice PDF (owner only)
+    if (method === 'GET' && seg.startsWith('invoice/')) {
+      const auth = await requireAuth(request); if (auth.error) return auth.error
+      const paymentId = seg.slice('invoice/'.length)
+      const db = await getDb()
+      const payment = await db.collection('payments').findOne({ razorpayPaymentId: paymentId, userId: auth.userId })
+      if (!payment) return json({ error: 'Invoice not found' }, 404)
+      const user = await db.collection('users').findOne({ id: auth.userId })
+      const yr = new Date(payment.verifiedAt).getFullYear()
+      const invoiceNo = `INV-${yr}-${payment.id.slice(0, 6).toUpperCase()}`
+      const bytes = await makeInvoicePdf({
+        invoiceNo,
+        invoiceDate: new Date(payment.verifiedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        buyerName: user?.name || 'Customer',
+        buyerEmail: user?.email || '',
+        courseTitle: payment.courseTitle || 'IntegrationX Pro Course',
+        amountRupees: payment.amountRupees || 0,
+        paymentId: payment.razorpayPaymentId,
+      })
+      return new NextResponse(Buffer.from(bytes), {
+        status: 200,
+        headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${invoiceNo}.pdf"` },
+      })
+    }
+    // ============ END CERTIFICATES ============
 
     // POST /api/newsletter { email }
     if (method === 'POST' && seg === 'newsletter') {
