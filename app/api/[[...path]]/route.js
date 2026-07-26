@@ -7,6 +7,8 @@ import { COURSES, CATEGORIES, TESTIMONIALS, LIVE_BATCHES, FAQS, getCourseBySlug 
 import { hashPassword, verifyPassword, signToken, verifyToken, cookieOptions, COOKIE, newUserId, readSessionFromRequest, sanitizeUser } from '@/lib/auth'
 import { makeCertificatePdf, makeInvoicePdf } from '@/lib/pdfs'
 import { callLLM, TUTOR_SYSTEM_PROMPT } from '@/lib/ai'
+import { LEARNING_PATHS, getPathBySlug } from '@/lib/paths-data'
+import { sendEmail, passwordResetEmail } from '@/lib/email'
 
 const json = (data, status = 200) => NextResponse.json(data, { status })
 
@@ -489,6 +491,115 @@ async function handler(request, ctx) {
       })
     }
     // ============ END ADMIN ============
+
+    // ============ LEARNING PATHS ============
+    // GET /api/paths  \u2014 list all paths
+    if (method === 'GET' && seg === 'paths') {
+      const paths = LEARNING_PATHS.map(p => ({
+        ...p,
+        courses: p.courseSlugs.map(getCourseBySlug).filter(Boolean),
+        totalPrice: p.courseSlugs.reduce((n, s) => n + (getCourseBySlug(s)?.price || 0), 0),
+        bundlePrice: Math.round(p.courseSlugs.reduce((n, s) => n + (getCourseBySlug(s)?.price || 0), 0) * 0.65),
+      }))
+      return json({ paths })
+    }
+    // GET /api/paths/[slug]
+    if (method === 'GET' && seg.startsWith('paths/')) {
+      const slug = seg.slice('paths/'.length)
+      const p = getPathBySlug(slug)
+      if (!p) return json({ error: 'Path not found' }, 404)
+      const courses = p.courseSlugs.map(getCourseBySlug).filter(Boolean)
+      const totalPrice = courses.reduce((n, c) => n + c.price, 0)
+      const bundlePrice = Math.round(totalPrice * 0.65)
+      return json({ path: { ...p, courses, totalPrice, bundlePrice, saving: totalPrice - bundlePrice } })
+    }
+    // ============ END PATHS ============
+
+    // ============ INSTRUCTOR ============
+    // Helper to require instructor role
+    // GET /api/instructor/courses  \u2014 list of my courses
+    if (method === 'GET' && seg === 'instructor/courses') {
+      const auth = await requireAuth(request); if (auth.error) return auth.error
+      const db = await getDb()
+      const list = await db.collection('custom_courses').find({ instructorId: auth.userId }).sort({ createdAt: -1 }).toArray()
+      return json({ courses: list.map(c => ({ ...c, _id: undefined })) })
+    }
+    // POST /api/instructor/courses  \u2014 create a course
+    if (method === 'POST' && seg === 'instructor/courses') {
+      const auth = await requireAuth(request); if (auth.error) return auth.error
+      const body = await request.json()
+      const { title, subtitle, category, level, language, price, originalPrice, thumbnail, promoVideo, description, whatYouLearn, skills, modules } = body
+      if (!title || !price || !category) return json({ error: 'Title, category and price are required' }, 400)
+      const db = await getDb()
+      const user = await db.collection('users').findOne({ id: auth.userId })
+      const slug = 'ic-' + (title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)) + '-' + uuidv4().slice(0, 4)
+      const course = {
+        id: uuidv4(),
+        slug,
+        title,
+        subtitle: subtitle || '',
+        category, categoryName: category,
+        level: level || 'All Levels',
+        language: language || 'English + Hindi',
+        price: Number(price),
+        originalPrice: Number(originalPrice || price * 2),
+        discount: originalPrice ? Math.round((1 - price / originalPrice) * 100) : 50,
+        thumbnail: thumbnail || 'https://images.unsplash.com/photo-1591439657848-9f4b9ce436b9?w=800',
+        banner: thumbnail || '',
+        promoVideo: promoVideo || 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+        description: description || '',
+        whatYouLearn: Array.isArray(whatYouLearn) ? whatYouLearn : [],
+        skills: Array.isArray(skills) ? skills : [],
+        duration: `${(modules?.reduce((n, m) => n + (m.lessons?.length || 0), 0) || 0) * 0.25}h`,
+        lectures: modules?.reduce((n, m) => n + (m.lessons?.length || 0), 0) || 0,
+        students: 0, rating: 0, reviews: 0, badge: 'New',
+        instructor: { name: user?.name || 'Instructor', title: 'Instructor', avatar: user?.avatar || null, rating: 0, students: 0, courses: 0, bio: '' },
+        instructorId: auth.userId,
+        curriculum: (modules || []).map((m, i) => ({ id: `m${i+1}`, title: m.title, lessons: (m.lessons || []).map((l, j) => ({ id: `m${i+1}l${j+1}`, title: l.title, duration: l.duration || '10:00', free: !!l.free, videoUrl: l.videoUrl || 'https://www.youtube.com/embed/dQw4w9WgXcQ', transcript: l.transcript || '', resources: [] })) })),
+        published: !!body.published,
+        createdAt: new Date().toISOString(),
+      }
+      await db.collection('custom_courses').insertOne(course)
+      return json({ ok: true, course: { ...course, _id: undefined } })
+    }
+    // ============ END INSTRUCTOR ============
+
+    // ============ PASSWORD RESET ============
+    // POST /api/auth/forgot-password  { email }
+    if (method === 'POST' && seg === 'auth/forgot-password') {
+      const { email } = await request.json()
+      if (!email) return json({ error: 'Email required' }, 400)
+      const em = email.trim().toLowerCase()
+      const db = await getDb()
+      const user = await db.collection('users').findOne({ email: em })
+      // Always return success (do not leak whether the account exists)
+      if (!user || !user.passwordHash) {
+        return json({ ok: true, message: 'If an account exists, a reset link will be sent.' })
+      }
+      const token = uuidv4().replace(/-/g, '')
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      await db.collection('password_reset_tokens').insertOne({ id: uuidv4(), token, userId: user.id, expiresAt, used: false, createdAt: new Date().toISOString() })
+      const link = `${baseUrl(request)}/reset-password/${token}`
+      const emailContent = passwordResetEmail({ name: user.name, link })
+      const emailRes = await sendEmail({ to: em, ...emailContent })
+      // In dev mode (no email provider), also return the link so QA/testing works.
+      return json({ ok: true, message: 'If an account exists, a reset link will be sent.', devLink: emailRes.sent ? undefined : link })
+    }
+
+    // POST /api/auth/reset-password  { token, newPassword }
+    if (method === 'POST' && seg === 'auth/reset-password') {
+      const { token, newPassword } = await request.json()
+      if (!token || !newPassword) return json({ error: 'Missing fields' }, 400)
+      if (newPassword.length < 6) return json({ error: 'Password must be at least 6 characters' }, 400)
+      const db = await getDb()
+      const rec = await db.collection('password_reset_tokens').findOne({ token, used: false })
+      if (!rec || new Date(rec.expiresAt).getTime() < Date.now()) return json({ error: 'Invalid or expired token' }, 400)
+      const passwordHash = await hashPassword(newPassword)
+      await db.collection('users').updateOne({ id: rec.userId }, { $set: { passwordHash } })
+      await db.collection('password_reset_tokens').updateOne({ token }, { $set: { used: true, usedAt: new Date().toISOString() } })
+      return json({ ok: true, message: 'Password reset successful. You can now sign in.' })
+    }
+    // ============ END PASSWORD RESET ============
 
     // POST /api/newsletter { email }
     if (method === 'POST' && seg === 'newsletter') {

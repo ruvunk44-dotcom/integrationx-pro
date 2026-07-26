@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation'
 
 const NAV = [
   { label: 'Courses', href: '/courses' },
+  { label: 'Learning Paths', href: '/paths' },
   { label: 'Live Batches', href: '/#live-batches' },
   { label: 'Corporate', href: '/#corporate' },
 ]
@@ -111,6 +112,7 @@ export default function SiteHeader() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild><Link href="/dashboard" className="cursor-pointer"><LayoutDashboard className="w-4 h-4 mr-2" /> Dashboard</Link></DropdownMenuItem>
                   <DropdownMenuItem asChild><Link href="/courses" className="cursor-pointer"><BookOpen className="w-4 h-4 mr-2" /> Browse Courses</Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href="/instructor" className="cursor-pointer"><BookOpen className="w-4 h-4 mr-2" /> Instructor Studio</Link></DropdownMenuItem>
                   {user.role === 'admin' && (
                     <DropdownMenuItem asChild><Link href="/admin" className="cursor-pointer text-primary"><LayoutDashboard className="w-4 h-4 mr-2" /> Admin Console</Link></DropdownMenuItem>
                   )}
