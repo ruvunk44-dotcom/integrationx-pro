@@ -111,6 +111,9 @@ export default function SiteHeader() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild><Link href="/dashboard" className="cursor-pointer"><LayoutDashboard className="w-4 h-4 mr-2" /> Dashboard</Link></DropdownMenuItem>
                   <DropdownMenuItem asChild><Link href="/courses" className="cursor-pointer"><BookOpen className="w-4 h-4 mr-2" /> Browse Courses</Link></DropdownMenuItem>
+                  {user.role === 'admin' && (
+                    <DropdownMenuItem asChild><Link href="/admin" className="cursor-pointer text-primary"><LayoutDashboard className="w-4 h-4 mr-2" /> Admin Console</Link></DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-500 focus:text-red-500"><LogOut className="w-4 h-4 mr-2" /> Sign out</DropdownMenuItem>
                 </DropdownMenuContent>

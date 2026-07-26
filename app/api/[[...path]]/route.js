@@ -6,6 +6,7 @@ import { getDb } from '@/lib/mongodb'
 import { COURSES, CATEGORIES, TESTIMONIALS, LIVE_BATCHES, FAQS, getCourseBySlug } from '@/lib/courses-data'
 import { hashPassword, verifyPassword, signToken, verifyToken, cookieOptions, COOKIE, newUserId, readSessionFromRequest, sanitizeUser } from '@/lib/auth'
 import { makeCertificatePdf, makeInvoicePdf } from '@/lib/pdfs'
+import { callLLM, TUTOR_SYSTEM_PROMPT } from '@/lib/ai'
 
 const json = (data, status = 200) => NextResponse.json(data, { status })
 
@@ -20,6 +21,20 @@ const getRazorpay = () => {
 async function requireAuth(request) {
   const s = readSessionFromRequest(request)
   if (!s?.sub) return { error: json({ error: 'Not authenticated' }, 401) }
+  return { userId: s.sub, email: s.email }
+}
+
+// require admin helper
+async function requireAdmin(request) {
+  const s = readSessionFromRequest(request)
+  if (!s?.sub) return { error: json({ error: 'Not authenticated' }, 401) }
+  const db = await getDb()
+  const u = await db.collection('users').findOne({ id: s.sub })
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+  const isAdmin = u?.role === 'admin' || (u?.email && adminEmails.includes(u.email.toLowerCase()))
+  if (!isAdmin) return { error: json({ error: 'Admin access required' }, 403) }
+  // auto-promote admin role once on first successful admin check
+  if (u.role !== 'admin') await db.collection('users').updateOne({ id: u.id }, { $set: { role: 'admin' } })
   return { userId: s.sub, email: s.email }
 }
 
@@ -411,6 +426,69 @@ async function handler(request, ctx) {
       })
     }
     // ============ END CERTIFICATES ============
+
+    // ============ AI TUTOR ============
+    // POST /api/ai/chat  { sessionId, message, model, history }
+    if (method === 'POST' && seg === 'ai/chat') {
+      const auth = await requireAuth(request); if (auth.error) return auth.error
+      const { sessionId, message, model, history } = await request.json()
+      if (!message || !message.trim()) return json({ error: 'Message required' }, 400)
+      const priorMessages = Array.isArray(history) ? history.slice(-10).map(m => ({ role: m.role, content: String(m.content).slice(0, 4000) })) : []
+      const messages = [
+        { role: 'system', content: TUTOR_SYSTEM_PROMPT },
+        ...priorMessages,
+        { role: 'user', content: String(message).slice(0, 4000) },
+      ]
+      try {
+        const res = await callLLM({ messages, model, sessionId })
+        // persist for analytics
+        const db = await getDb()
+        db.collection('ai_messages').insertMany([
+          { id: uuidv4(), sessionId, userId: auth.userId, role: 'user', content: message, model: res.model, createdAt: new Date().toISOString() },
+          { id: uuidv4(), sessionId, userId: auth.userId, role: 'assistant', content: res.content, model: res.model, createdAt: new Date().toISOString() },
+        ]).catch(() => {})
+        return json({ reply: res.content, model: res.model, sessionId })
+      } catch (err) {
+        console.error('AI error:', err?.message || err)
+        return json({ error: 'AI temporarily unavailable. Please try again.' }, 502)
+      }
+    }
+    // ============ END AI ============
+
+    // ============ ADMIN ============
+    // GET /api/admin/stats  \u2014 aggregate + lists (admin only)
+    if (method === 'GET' && seg === 'admin/stats') {
+      const auth = await requireAdmin(request); if (auth.error) return auth.error
+      const db = await getDb()
+      const [users, payments, enrollments, certificates] = await Promise.all([
+        db.collection('users').find({}).sort({ createdAt: -1 }).limit(200).toArray(),
+        db.collection('payments').find({}).sort({ verifiedAt: -1 }).limit(200).toArray(),
+        db.collection('enrollments').find({}).sort({ enrolledAt: -1 }).limit(200).toArray(),
+        db.collection('certificates').find({}).sort({ issuedAt: -1 }).limit(200).toArray(),
+      ])
+      const revenue = payments.reduce((n, p) => n + (p.amountRupees || 0), 0)
+      const completions = enrollments.filter(e => (e.progress || 0) === 100).length
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+      const newUsers7d = users.filter(u => new Date(u.createdAt).getTime() > sevenDaysAgo).length
+      const clean = (arr) => arr.map(x => ({ ...x, _id: undefined, passwordHash: undefined }))
+      return json({
+        stats: {
+          revenue,
+          users: users.length,
+          payments: payments.length,
+          enrollments: enrollments.length,
+          completions,
+          newUsers7d,
+          certificates: certificates.length,
+        },
+        users: clean(users),
+        payments: clean(payments),
+        enrollments: clean(enrollments),
+        certificates: clean(certificates),
+        courses: COURSES.map(c => ({ slug: c.slug, title: c.title, category: c.categoryName, price: c.price, students: c.students })),
+      })
+    }
+    // ============ END ADMIN ============
 
     // POST /api/newsletter { email }
     if (method === 'POST' && seg === 'newsletter') {
