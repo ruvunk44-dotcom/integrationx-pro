@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "yarn install --frozen-lockfile",
+  "buildCommand": "yarn build",
+  "devCommand": "yarn dev",
+  "headers": [
+    {
+      "source": "/api/health",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ]
+}
