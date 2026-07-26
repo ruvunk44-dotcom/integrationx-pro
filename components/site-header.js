@@ -2,15 +2,25 @@
 import Link from 'next/link'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
-import { Moon, Sun, Menu, X, Search, GraduationCap, ChevronDown } from 'lucide-react'
+import { Moon, Sun, Menu, X, Search, GraduationCap, LogOut, User, LayoutDashboard, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth } from '@/components/auth-provider'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 
 const NAV = [
   { label: 'Courses', href: '/courses' },
   { label: 'Live Batches', href: '/#live-batches' },
   { label: 'Corporate', href: '/#corporate' },
-  { label: 'Dashboard', href: '/dashboard' },
 ]
 
 export default function SiteHeader() {
@@ -18,6 +28,8 @@ export default function SiteHeader() {
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const { user, logout, loading } = useAuth()
+  const router = useRouter()
 
   useEffect(() => setMounted(true), [])
   useEffect(() => {
@@ -25,6 +37,14 @@ export default function SiteHeader() {
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  const handleLogout = async () => {
+    await logout()
+    toast.success('Logged out. See you soon!')
+    router.push('/')
+  }
+
+  const initials = user?.name?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'py-2' : 'py-3'}`}>
@@ -47,6 +67,11 @@ export default function SiteHeader() {
                 {n.label}
               </Link>
             ))}
+            {user && (
+              <Link href="/dashboard" className="px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors">
+                Dashboard
+              </Link>
+            )}
           </nav>
 
           <div className="flex items-center gap-2">
@@ -58,9 +83,40 @@ export default function SiteHeader() {
                 {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </Button>
             )}
-            <Button asChild className="gradient-primary text-white border-0 hover:opacity-90 rounded-lg font-semibold hidden sm:inline-flex">
-              <Link href="/courses">Start Learning</Link>
-            </Button>
+
+            {!loading && !user && (
+              <>
+                <Button asChild variant="ghost" className="hidden sm:inline-flex font-semibold"><Link href="/login">Log in</Link></Button>
+                <Button asChild className="gradient-primary text-white border-0 hover:opacity-90 rounded-lg font-semibold">
+                  <Link href="/signup">Sign up</Link>
+                </Button>
+              </>
+            )}
+            {!loading && user && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="relative w-9 h-9 rounded-full overflow-hidden ring-2 ring-primary/30 hover:ring-primary/60 transition shrink-0">
+                    {user.avatar ? (
+                      <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full gradient-primary flex items-center justify-center text-white text-xs font-bold">{initials}</div>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64 glass-strong border-border/50">
+                  <DropdownMenuLabel className="pb-2">
+                    <div className="font-semibold text-sm truncate">{user.name}</div>
+                    <div className="text-xs text-muted-foreground font-normal truncate">{user.email}</div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild><Link href="/dashboard" className="cursor-pointer"><LayoutDashboard className="w-4 h-4 mr-2" /> Dashboard</Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link href="/courses" className="cursor-pointer"><BookOpen className="w-4 h-4 mr-2" /> Browse Courses</Link></DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-500 focus:text-red-500"><LogOut className="w-4 h-4 mr-2" /> Sign out</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
             <Button variant="ghost" size="icon" className="lg:hidden rounded-lg" onClick={() => setOpen(!open)}>
               {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </Button>
@@ -75,6 +131,15 @@ export default function SiteHeader() {
                   {n.label}
                 </Link>
               ))}
+              {user && (
+                <Link href="/dashboard" onClick={() => setOpen(false)} className="block px-4 py-3 rounded-lg text-sm font-medium hover:bg-accent/50">Dashboard</Link>
+              )}
+              {!user && (
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <Button asChild variant="outline"><Link href="/login" onClick={() => setOpen(false)}>Log in</Link></Button>
+                  <Button asChild className="gradient-primary text-white border-0"><Link href="/signup" onClick={() => setOpen(false)}>Sign up</Link></Button>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

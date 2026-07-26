@@ -5,16 +5,16 @@ import { useRouter } from 'next/navigation'
 import { Star, Clock, Users, PlayCircle, CheckCircle2, Lock, ChevronRight, Globe, Award, Sparkles, Download, MessageCircle, Heart, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import SiteHeader from '@/components/site-header'
 import SiteFooter from '@/components/site-footer'
-import { getUserId } from '@/lib/user'
+import { useAuth } from '@/components/auth-provider'
 
 export default function CourseDetail({ params }) {
   const { slug } = useUnwrap(params)
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const [course, setCourse] = useState(null)
   const [enrolled, setEnrolled] = useState(false)
   const [wishlist, setWishlist] = useState(false)
@@ -22,17 +22,24 @@ export default function CourseDetail({ params }) {
 
   useEffect(() => {
     fetch(`/api/courses/${slug}`).then(r => r.json()).then(d => { setCourse(d.course); setLoading(false) })
-    const uid = getUserId()
-    fetch(`/api/enrollments?userId=${uid}`).then(r => r.json()).then(d => {
-      setEnrolled((d.enrollments || []).some(e => e.courseSlug === slug))
-    })
-    fetch(`/api/wishlist?userId=${uid}`).then(r => r.json()).then(d => {
-      setWishlist((d.wishlist || []).some(w => w.courseSlug === slug))
-    })
   }, [slug])
 
+  useEffect(() => {
+    if (!user) { setEnrolled(false); setWishlist(false); return }
+    fetch(`/api/enrollments`, { credentials: 'include' }).then(r => r.json()).then(d => {
+      setEnrolled((d.enrollments || []).some(e => e.courseSlug === slug))
+    })
+    fetch(`/api/wishlist`, { credentials: 'include' }).then(r => r.json()).then(d => {
+      setWishlist((d.wishlist || []).some(w => w.courseSlug === slug))
+    })
+  }, [slug, user])
+
   const enroll = async () => {
-    const uid = getUserId()
+    if (!user) {
+      toast.info('Please sign in to enroll')
+      router.push(`/login?next=${encodeURIComponent(`/courses/${slug}`)}`)
+      return
+    }
     if (typeof window === 'undefined' || !window.Razorpay) {
       toast.error('Payment system loading... please retry in a second.')
       return
@@ -40,15 +47,12 @@ export default function CourseDetail({ params }) {
     try {
       toast.loading('Preparing your order...', { id: 'pay' })
       const orderRes = await fetch('/api/payments/create-order', {
-        method: 'POST',
+        method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: uid, courseSlug: slug }),
+        body: JSON.stringify({ courseSlug: slug }),
       })
       const orderData = await orderRes.json()
-      if (!orderRes.ok) {
-        toast.error(orderData.error || 'Could not create order', { id: 'pay' })
-        return
-      }
+      if (!orderRes.ok) { toast.error(orderData.error || 'Could not create order', { id: 'pay' }); return }
       toast.dismiss('pay')
       const rzp = new window.Razorpay({
         key: orderData.key,
@@ -59,18 +63,17 @@ export default function CourseDetail({ params }) {
         image: orderData.course.thumbnail,
         order_id: orderData.orderId,
         theme: { color: '#7c3aed' },
-        prefill: { name: 'Learner', email: '', contact: '' },
-        notes: { userId: uid, courseSlug: slug },
+        prefill: { name: user.name || 'Learner', email: user.email || '', contact: '' },
+        notes: { userId: user.id, courseSlug: slug },
         handler: async function (response) {
           toast.loading('Verifying payment...', { id: 'verify' })
           const verifyRes = await fetch('/api/payments/verify', {
-            method: 'POST',
+            method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
-              userId: uid,
               courseSlug: slug,
             }),
           })
@@ -83,23 +86,25 @@ export default function CourseDetail({ params }) {
             toast.error(verifyData.error || 'Verification failed. Please contact support.', { id: 'verify' })
           }
         },
-        modal: {
-          ondismiss: () => toast.info('Payment cancelled'),
-        },
+        modal: { ondismiss: () => toast.info('Payment cancelled') },
       })
-      rzp.on('payment.failed', function (resp) {
-        toast.error(`Payment failed: ${resp.error?.description || 'Please try again'}`)
-      })
+      rzp.on('payment.failed', function (resp) { toast.error(`Payment failed: ${resp.error?.description || 'Please try again'}`) })
       rzp.open()
-    } catch (err) {
-      toast.error('Something went wrong. Please try again.', { id: 'pay' })
-    }
+    } catch (err) { toast.error('Something went wrong. Please try again.', { id: 'pay' }) }
   }
 
   const toggleWishlist = async () => {
-    const uid = getUserId()
+    if (!user) {
+      toast.info('Please sign in to save to wishlist')
+      router.push(`/login?next=${encodeURIComponent(`/courses/${slug}`)}`)
+      return
+    }
     setWishlist(!wishlist)
-    await fetch('/api/wishlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: uid, courseSlug: slug, action: wishlist ? 'remove' : 'add' }) })
+    await fetch('/api/wishlist', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ courseSlug: slug, action: wishlist ? 'remove' : 'add' }),
+    })
     toast.success(wishlist ? 'Removed from wishlist' : 'Added to wishlist')
   }
 
@@ -112,7 +117,6 @@ export default function CourseDetail({ params }) {
     <div className="min-h-screen bg-background">
       <SiteHeader />
 
-      {/* Hero Banner */}
       <section className="relative pt-28 pb-12 overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img src={course.banner} alt="" className="w-full h-full object-cover opacity-15" />
@@ -129,14 +133,12 @@ export default function CourseDetail({ params }) {
             {course.badge && <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30 mb-3"><Sparkles className="w-3 h-3" /> {course.badge}</span>}
             <h1 className="text-3xl md:text-5xl font-extrabold leading-tight">{course.title}</h1>
             <p className="text-lg text-muted-foreground mt-3 max-w-2xl">{course.subtitle}</p>
-
             <div className="flex flex-wrap items-center gap-4 mt-5 text-sm">
               <div className="flex items-center gap-1"><Star className="w-4 h-4 fill-amber-400 text-amber-400" /><span className="font-bold">{course.rating}</span> <span className="text-muted-foreground">({course.reviews.toLocaleString()} reviews)</span></div>
               <div className="flex items-center gap-1 text-muted-foreground"><Users className="w-4 h-4" /> {course.students.toLocaleString()} students</div>
               <div className="flex items-center gap-1 text-muted-foreground"><Globe className="w-4 h-4" /> {course.language}</div>
               <div className="flex items-center gap-1 text-muted-foreground"><Award className="w-4 h-4" /> {course.level}</div>
             </div>
-
             <div className="flex items-center gap-3 mt-5">
               <img src={course.instructor.avatar} alt={course.instructor.name} className="w-11 h-11 rounded-full ring-2 ring-primary/30" />
               <div>
@@ -146,7 +148,6 @@ export default function CourseDetail({ params }) {
             </div>
           </motion.div>
 
-          {/* Sticky Enroll Card */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="lg:sticky lg:top-24 lg:self-start">
             <div className="glass-strong rounded-2xl overflow-hidden shadow-2xl shadow-primary/10">
               <div className="relative aspect-video group cursor-pointer">
@@ -172,7 +173,7 @@ export default function CourseDetail({ params }) {
                   </Button>
                 ) : (
                   <Button onClick={enroll} className="w-full h-12 gradient-primary text-white border-0 font-bold text-base shadow-lg shadow-primary/30">
-                    Enroll Now
+                    {authLoading ? 'Loading...' : (user ? `Enroll — Pay ₹${course.price.toLocaleString('en-IN')}` : 'Sign in to Enroll')}
                   </Button>
                 )}
                 <div className="grid grid-cols-2 gap-2 mt-2">
@@ -195,16 +196,14 @@ export default function CourseDetail({ params }) {
                 </div>
               </div>
             </div>
-                <p className="text-center text-xs text-muted-foreground mt-3">30-Day Money-Back Guarantee · Full lifetime access · UPI · Cards · Net Banking · EMI</p>
+            <p className="text-center text-xs text-muted-foreground mt-3">30-Day Money-Back Guarantee · UPI · Cards · Net Banking · EMI</p>
           </motion.div>
         </div>
       </section>
 
-      {/* Details */}
       <section className="pb-20">
         <div className="mx-auto max-w-7xl px-4 grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
-            {/* What you'll learn */}
             <div className="glass rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-4">What you'll learn</h2>
               <div className="grid sm:grid-cols-2 gap-3">
@@ -213,18 +212,12 @@ export default function CourseDetail({ params }) {
                 ))}
               </div>
             </div>
-
-            {/* Skills */}
             <div className="glass rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-4">Skills you'll master</h2>
               <div className="flex flex-wrap gap-2">
-                {course.skills.map(s => (
-                  <span key={s} className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium border border-primary/20">{s}</span>
-                ))}
+                {course.skills.map(s => <span key={s} className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-sm font-medium border border-primary/20">{s}</span>)}
               </div>
             </div>
-
-            {/* Curriculum */}
             <div className="glass rounded-2xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold">Course Curriculum</h2>
@@ -257,8 +250,6 @@ export default function CourseDetail({ params }) {
                 ))}
               </Accordion>
             </div>
-
-            {/* Instructor */}
             <div className="glass rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-4">Your Instructor</h2>
               <div className="flex flex-col sm:flex-row gap-4">
@@ -275,15 +266,11 @@ export default function CourseDetail({ params }) {
                 </div>
               </div>
             </div>
-
-            {/* Description */}
             <div className="glass rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-4">About this course</h2>
               <p className="text-sm text-muted-foreground leading-relaxed">{course.description}</p>
             </div>
           </div>
-
-          {/* right col stays sticky via hero */}
           <div className="hidden lg:block" />
         </div>
       </section>

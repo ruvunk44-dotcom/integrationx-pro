@@ -1,17 +1,20 @@
 'use client'
 import { useEffect, useState, useRef, use as useUnwrap } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, ChevronLeft, ChevronRight, CheckCircle2, PlayCircle, Lock, FileText, Download, MessageCircle, StickyNote, Home, Award, Menu, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, ChevronLeft, ChevronRight, CheckCircle2, PlayCircle, Lock, FileText, Download, MessageCircle, StickyNote, Award, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getUserId } from '@/lib/user'
+import { useAuth } from '@/components/auth-provider'
 
 export default function LearnPage({ params }) {
   const { slug } = useUnwrap(params)
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const [course, setCourse] = useState(null)
   const [currentLesson, setCurrentLesson] = useState(null)
   const [completedLessons, setCompletedLessons] = useState([])
@@ -26,32 +29,29 @@ export default function LearnPage({ params }) {
   const totalLessons = flatLessons.length
 
   useEffect(() => {
+    if (authLoading) return
+    if (!user) { router.push(`/login?next=${encodeURIComponent(`/learn/${slug}`)}`); return }
     fetch(`/api/courses/${slug}`).then(r => r.json()).then(async d => {
       setCourse(d.course)
       const first = d.course.curriculum[0].lessons[0]
-      const uid = getUserId()
-      // ensure enrolled
-      await fetch('/api/enroll', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: uid, courseSlug: slug }) })
-      const p = await fetch(`/api/progress?userId=${uid}&courseSlug=${slug}`).then(r => r.json())
+      const p = await fetch(`/api/progress?courseSlug=${slug}`, { credentials: 'include' }).then(r => r.json())
       setCompletedLessons(p.completedLessons || [])
       setProgress(p.progress || 0)
       setCurrentLesson(first)
       setLoading(false)
     })
-  }, [slug])
+  }, [slug, user, authLoading, router])
 
   useEffect(() => {
-    if (!currentLesson) return
-    const uid = getUserId()
-    fetch(`/api/notes?userId=${uid}&courseSlug=${slug}&lessonId=${currentLesson.id}`).then(r => r.json()).then(d => setNote(d.note?.content || ''))
-  }, [currentLesson, slug])
+    if (!currentLesson || !user) return
+    fetch(`/api/notes?courseSlug=${slug}&lessonId=${currentLesson.id}`, { credentials: 'include' }).then(r => r.json()).then(d => setNote(d.note?.content || ''))
+  }, [currentLesson, slug, user])
 
   const saveNote = (v) => {
     setNote(v)
     clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
-      const uid = getUserId()
-      await fetch('/api/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: uid, courseSlug: slug, lessonId: currentLesson.id, content: v }) })
+      await fetch('/api/notes', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ courseSlug: slug, lessonId: currentLesson.id, content: v }) })
     }, 700)
   }
 
@@ -59,8 +59,7 @@ export default function LearnPage({ params }) {
     if (!lessonId) return
     const isDone = completedLessons.includes(lessonId)
     const newState = forceState !== undefined ? forceState : !isDone
-    const uid = getUserId()
-    const r = await fetch('/api/progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: uid, courseSlug: slug, lessonId, completed: newState }) }).then(r => r.json())
+    const r = await fetch('/api/progress', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ courseSlug: slug, lessonId, completed: newState }) }).then(r => r.json())
     setCompletedLessons(r.completedLessons)
     setProgress(r.progress)
     if (newState) toast.success('Lesson marked complete 🎉')
@@ -71,11 +70,10 @@ export default function LearnPage({ params }) {
     if (dir === 'prev' && currentIndex > 0) setCurrentLesson(flatLessons[currentIndex - 1])
   }
 
-  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="text-muted-foreground">Loading your learning space...</div></div>
+  if (authLoading || loading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="text-muted-foreground">Loading your learning space...</div></div>
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Top Bar */}
       <div className="sticky top-0 z-40 glass-strong border-b border-border/50">
         <div className="px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -83,8 +81,7 @@ export default function LearnPage({ params }) {
               {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </Button>
             <Link href={`/courses/${slug}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground shrink-0">
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Back</span>
+              <ArrowLeft className="w-4 h-4" /><span className="hidden sm:inline">Back</span>
             </Link>
             <div className="h-6 w-px bg-border hidden sm:block" />
             <div className="min-w-0 hidden sm:block">
@@ -97,17 +94,12 @@ export default function LearnPage({ params }) {
               <div className="text-[10px] text-muted-foreground">{progress}% complete</div>
               <Progress value={progress} className="h-1.5 w-32" />
             </div>
-            {progress === 100 && (
-              <Button size="sm" className="gradient-primary text-white border-0">
-                <Award className="w-4 h-4 mr-1" /> Certificate
-              </Button>
-            )}
+            {progress === 100 && <Button size="sm" className="gradient-primary text-white border-0"><Award className="w-4 h-4 mr-1" /> Certificate</Button>}
           </div>
         </div>
       </div>
 
       <div className="flex">
-        {/* Sidebar */}
         <AnimatePresence>
           {sidebarOpen && (
             <motion.aside initial={{ x: -320, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -320, opacity: 0 }} className="w-80 shrink-0 border-r border-border/50 h-[calc(100vh-56px)] sticky top-14 overflow-y-auto bg-background/50 backdrop-blur-xl">
@@ -144,15 +136,11 @@ export default function LearnPage({ params }) {
           )}
         </AnimatePresence>
 
-        {/* Main */}
         <main className="flex-1 min-w-0">
           <div className="max-w-5xl mx-auto p-4 md:p-6">
-            {/* Video */}
             <div className="aspect-video rounded-2xl overflow-hidden bg-black shadow-2xl shadow-primary/10">
               <iframe src={currentLesson?.videoUrl} title={currentLesson?.title} className="w-full h-full" allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" />
             </div>
-
-            {/* Meta */}
             <div className="mt-5 flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <div className="text-xs text-primary font-semibold uppercase tracking-wider">{currentLesson?.moduleTitle}</div>
@@ -163,8 +151,6 @@ export default function LearnPage({ params }) {
                 <CheckCircle2 className="w-4 h-4 mr-2" /> {completedLessons.includes(currentLesson?.id) ? 'Completed' : 'Mark Complete'}
               </Button>
             </div>
-
-            {/* Tabs */}
             <div className="mt-6">
               <Tabs defaultValue="notes" className="w-full">
                 <TabsList className="grid grid-cols-4 w-full max-w-2xl">
@@ -179,7 +165,7 @@ export default function LearnPage({ params }) {
                       <h3 className="font-semibold text-sm">Your notes for this lesson</h3>
                       <span className="text-[10px] text-muted-foreground">Auto-saved</span>
                     </div>
-                    <Textarea value={note} onChange={e => saveNote(e.target.value)} placeholder="Take notes while you learn... your notes are saved automatically and searchable later." rows={8} className="resize-none bg-background/50" />
+                    <Textarea value={note} onChange={e => saveNote(e.target.value)} placeholder="Take notes while you learn..." rows={8} className="resize-none bg-background/50" />
                   </div>
                 </TabsContent>
                 <TabsContent value="attachments" className="mt-4">
@@ -199,9 +185,7 @@ export default function LearnPage({ params }) {
                   </div>
                 </TabsContent>
                 <TabsContent value="transcript" className="mt-4">
-                  <div className="glass rounded-2xl p-6">
-                    <p className="text-sm text-muted-foreground leading-relaxed">{currentLesson?.transcript}</p>
-                  </div>
+                  <div className="glass rounded-2xl p-6"><p className="text-sm text-muted-foreground leading-relaxed">{currentLesson?.transcript}</p></div>
                 </TabsContent>
                 <TabsContent value="discussion" className="mt-4">
                   <div className="glass rounded-2xl p-6 text-center text-muted-foreground text-sm">
@@ -212,8 +196,6 @@ export default function LearnPage({ params }) {
                 </TabsContent>
               </Tabs>
             </div>
-
-            {/* Nav */}
             <div className="mt-8 flex items-center justify-between">
               <Button variant="outline" onClick={() => goto('prev')} disabled={currentIndex <= 0} className="glass"><ChevronLeft className="w-4 h-4 mr-1" /> Previous</Button>
               <Button onClick={() => goto('next')} disabled={currentIndex >= totalLessons - 1} className="gradient-primary text-white border-0">Next Lesson <ChevronRight className="w-4 h-4 ml-1" /></Button>
