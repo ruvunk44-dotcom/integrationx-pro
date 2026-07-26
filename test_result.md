@@ -272,3 +272,27 @@ agent_communication:
     message: "Backend API is a single catch-all route at /app/app/api/[[...path]]/route.js exposing 10+ endpoints for catalog, courses, enrollments, progress, notes, wishlist, and newsletter. Static catalog lives in /app/lib/courses-data.js. MongoDB via /app/lib/mongodb.js. Please test all endpoints with realistic userId + slug values (e.g. slug=sap-cpi-integration-mastery, userId=test-user-1). Verify: (1) filtering & sorting on /api/courses, (2) enrollment idempotency, (3) progress recomputes correct percentage after marking lessons complete/incomplete, (4) notes upsert & retrieval, (5) wishlist add + remove."
   - agent: "testing"
     message: "🎉 BACKEND TESTING COMPLETE - ALL 27 TESTS PASSED (100% success rate). Comprehensive test suite created at /app/backend_test.py covering all endpoints. Key findings: (1) Health & catalog endpoints working perfectly, (2) Course filtering by category/level/search and sorting by price/rating verified, (3) Course detail with curriculum modules confirmed, 404 handling correct, (4) Enrollment idempotency working - duplicate enrollments handled gracefully, (5) Progress tracking calculates percentages correctly (5% per lesson for 20-lesson course), completedLessons array updates without duplicates, (6) Notes CRUD with upsert functionality verified, (7) Wishlist add/remove operations working, (8) Newsletter subscription idempotent, (9) Error handling confirmed - 400 for missing fields, 404 for invalid routes. MongoDB integration stable. No critical issues found. Backend is production-ready."
+
+---
+
+## Bug Fix: Cannot Download / Push to Git Repo
+**Reported:** User could not download the code or push to a Git repository.
+
+**Root Cause:**
+- `.env` file contained real production secrets (Razorpay Key Secret, Google OAuth Client Secret, JWT Secret, Emergent LLM Key)
+- `.env` was NOT listed in `.gitignore`
+- As a result, auto-commits could include `.env`, and any push to GitHub was being BLOCKED by GitHub Push Protection which detects live secrets
+
+**Fix Applied:**
+1. Added `.env`, `.env.local`, `.env.*.local`, `/cookies*.txt`, `/tmp/` to `/app/.gitignore`
+2. Kept `!.env.example` allow-rule for the template file
+3. Created `/app/.env.example` with placeholder values documenting every required env var (MONGO_URL, JWT_SECRET, GOOGLE_CLIENT_ID/SECRET, RAZORPAY_KEY_ID/SECRET, EMERGENT_LLM_KEY, ADMIN_EMAILS, SENDGRID_API_KEY)
+4. Verified: no real secret values exist in any tracked file OR any git history commit
+
+**Verification requested from deployment_agent:**
+- Confirm `.env` is properly gitignored (should not appear in `git ls-files`)
+- Confirm `.env.example` is tracked and contains ONLY placeholders
+- Scan all tracked files and git history for hardcoded secrets (Razorpay, Google, JWT, Emergent)
+- Confirm services still run after the change (no broken imports / missing env)
+- Confirm the repo is push-safe
+
