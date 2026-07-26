@@ -2,12 +2,12 @@ import './globals.css'
 import { Providers } from './providers'
 
 export const metadata = {
-  title: 'DevLearn Pro — Master Industry Skills with Real Projects',
-  description: 'Premium online learning platform for professional IT courses — SAP, AWS, AI, DevOps, React, Python and more. Live training, mentoring, certificates.',
-  keywords: ['IT courses', 'online learning', 'SAP', 'AWS', 'React', 'DevOps', 'AI', 'Python', 'certification'],
+  title: 'IntegrationX Pro — Master SAP BTP, Integration Suite & Enterprise IT',
+  description: 'The premium learning platform for SAP professionals. Master SAP BTP, Integration Suite, CPI, ABAP, Fiori, SuccessFactors — plus AWS, AI, DevOps. Live cohorts, expert mentors, verified certificates.',
+  keywords: ['SAP BTP', 'SAP Integration Suite', 'SAP CPI', 'SAP ABAP', 'SAP Fiori', 'SAP SuccessFactors', 'IT courses', 'AWS', 'DevOps', 'certification'],
   openGraph: {
-    title: 'DevLearn Pro — Premium IT Learning Platform',
-    description: 'Master industry skills with real projects. Live classes, expert mentors, verified certificates.',
+    title: 'IntegrationX Pro — SAP BTP & Integration Suite Experts',
+    description: 'Master SAP BTP and Integration Suite with world-class architects. Live classes, real projects, verified certificates.',
     type: 'website',
   },
 }

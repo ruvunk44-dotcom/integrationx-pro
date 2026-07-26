@@ -32,7 +32,8 @@ export default function HomePage() {
 
   const bestsellers = data.courses.filter(c => c.badge === 'Bestseller')
   const newCourses = data.courses.filter(c => c.badge === 'New' || c.tags?.includes('New'))
-  const popularCourses = data.courses.slice(0, 6)
+  const sapCourses = data.courses.filter(c => (c.category || '').startsWith('sap'))
+  const popularCourses = data.courses.filter(c => !(c.category || '').startsWith('sap')).slice(0, 3)
 
   return (
     <div className="min-h-screen bg-background">
@@ -52,15 +53,15 @@ export default function HomePage() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                Live Batches Starting July 15 — <span className="gradient-text font-semibold">Only 8 seats left</span>
+                SAP CPI Live Cohort — <span className="gradient-text font-semibold">Only 8 seats left · Starts July 15</span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight">
-                Master <span className="gradient-text">Industry Skills</span><br />
-                with Real Projects
+                Master <span className="gradient-text">SAP BTP</span><br />
+                & Integration Suite
               </h1>
               <p className="mt-6 text-lg text-muted-foreground max-w-xl leading-relaxed">
-                Premium IT training built by architects at Deloitte, AWS, Meta & DeepMind. Live cohorts, hands-on projects, verified certificates — everything you need to land your next role.
+                The #1 platform for SAP integration professionals. Learn <b className="text-foreground">Integration Suite (CPI), BTP, ABAP, Fiori, SuccessFactors</b> — from principal architects at Deloitte, Accenture, TCS & SAP Labs. Real corporate projects, verified certificates, guaranteed placements.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
@@ -118,12 +119,12 @@ export default function HomePage() {
             </motion.div>
           </div>
 
-          {/* Trusted by */}
-          <div className="mt-20 flex flex-col items-center">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Learners work at</p>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-8 md:gap-14 opacity-70">
-              {['Deloitte','Microsoft','AWS','Google','Meta','Spotify','Stripe','Accenture'].map(brand => (
-                <span key={brand} className="text-lg md:text-xl font-bold tracking-tight text-muted-foreground">{brand}</span>
+          {/* Trusted by SAP companies */}
+          <div className="mt-20 glass rounded-2xl p-6">
+            <div className="text-center text-xs uppercase tracking-widest text-muted-foreground mb-4">Trusted by SAP professionals at</div>
+            <div className="flex flex-wrap items-center justify-center gap-6 md:gap-12 opacity-80">
+              {['Deloitte','Accenture','TCS','Infosys','Capgemini','IBM','Wipro','SAP'].map(brand => (
+                <span key={brand} className="text-base md:text-lg font-bold tracking-tight text-muted-foreground">{brand}</span>
               ))}
             </div>
           </div>
@@ -153,13 +154,33 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* SAP MASTERY TRACK — Signature Section */}
+      <section className="py-16 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/10" />
+        <div className="relative mx-auto max-w-7xl px-4">
+          <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 glass px-3 py-1 rounded-full text-[11px] font-bold text-primary mb-3 uppercase tracking-widest">
+                <Sparkles className="w-3 h-3" /> Signature Track
+              </div>
+              <h2 className="text-3xl md:text-4xl font-extrabold">SAP <span className="gradient-text">Mastery Track</span></h2>
+              <p className="text-muted-foreground mt-2 max-w-2xl">Built by SAP Mentors & principal architects. The most comprehensive SAP curriculum on the internet — covering BTP, Integration Suite, ABAP, Fiori, and SuccessFactors.</p>
+            </div>
+            <Button asChild variant="outline" className="glass"><Link href="/courses?category=sap-btp">Explore SAP Track <ChevronRight className="w-4 h-4 ml-1" /></Link></Button>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {sapCourses.map((c, i) => <CourseCard key={c.slug} course={c} index={i} />)}
+          </div>
+        </div>
+      </section>
+
       {/* POPULAR COURSES */}
       <section className="py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex items-end justify-between mb-8">
             <div>
-              <h2 className="text-3xl md:text-4xl font-extrabold">Popular <span className="gradient-text">Courses</span></h2>
-              <p className="text-muted-foreground mt-2">Most enrolled by learners this month</p>
+              <h2 className="text-3xl md:text-4xl font-extrabold">Also <span className="gradient-text">Trending</span></h2>
+              <p className="text-muted-foreground mt-2">Complement your SAP skills with cloud, AI & modern web</p>
             </div>
             <Button asChild variant="ghost"><Link href="/courses">View all <ChevronRight className="w-4 h-4 ml-1" /></Link></Button>
           </div>
@@ -207,10 +228,10 @@ export default function HomePage() {
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
             {[
-              { icon: Rocket, title: 'Ship Real Projects', desc: 'Every course ends with a portfolio-worthy project shipped to production.', color: 'from-blue-500 to-cyan-500' },
-              { icon: Users, title: 'Small Live Cohorts', desc: 'Max 20 students per batch. Personal attention. Real mentor access.', color: 'from-purple-500 to-pink-500' },
-              { icon: Target, title: 'Industry Instructors', desc: 'Learn from architects at Deloitte, AWS, Google, Meta, Stripe.', color: 'from-emerald-500 to-teal-500' },
-              { icon: Brain, title: 'AI Learning Assistant', desc: 'Get 24/7 tutoring, quizzes, and study plans powered by GPT-5.', color: 'from-amber-500 to-orange-500' },
+              { icon: Building2, title: 'SAP-First DNA', desc: 'Founded by SAP Mentors. Every SAP course reflects real corporate migration & integration work.', color: 'from-blue-500 to-cyan-500' },
+              { icon: Users, title: 'Small Live Cohorts', desc: 'Max 20 students per batch. Personal attention. Real mentor access on Slack & Zoom.', color: 'from-purple-500 to-pink-500' },
+              { icon: Target, title: 'Industry Instructors', desc: 'Learn from principal architects at SAP Labs, Deloitte, Accenture, TCS, AWS.', color: 'from-emerald-500 to-teal-500' },
+              { icon: Brain, title: 'AI Learning Assistant', desc: 'Get 24/7 tutoring, quizzes & personalized study plans powered by GPT-5.', color: 'from-amber-500 to-orange-500' },
             ].map((f, i) => (
               <motion.div key={f.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }} className="glass rounded-2xl p-6 hover:border-primary/40 transition group">
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${f.color} flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition`}>

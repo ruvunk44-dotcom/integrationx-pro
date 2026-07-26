@@ -13,12 +13,12 @@ export default function SiteFooter() {
                 <GraduationCap className="w-5 h-5 text-white" strokeWidth={2.5} />
               </div>
               <div className="flex flex-col leading-none">
-                <span className="font-bold text-lg">DevLearn <span className="gradient-text">Pro</span></span>
-                <span className="text-xs text-muted-foreground">Master IT Skills with Real Projects</span>
+                <span className="font-bold text-lg">Integration<span className="gradient-text">X</span> Pro</span>
+                <span className="text-xs text-muted-foreground">SAP BTP & Enterprise Integration Experts</span>
               </div>
             </Link>
             <p className="mt-4 text-sm text-muted-foreground max-w-sm">
-              The premium destination for professional IT training. Live classes, expert mentors, hands-on projects, and industry-recognized certifications.
+              The #1 destination for SAP BTP, Integration Suite (CPI), ABAP, Fiori, SuccessFactors and enterprise IT training. Live cohorts, industry architects, real corporate projects, verified certificates.
             </p>
             <div className="flex items-center gap-3 mt-6">
               {[Twitter, Linkedin, Youtube, Github].map((Icon, i) => (

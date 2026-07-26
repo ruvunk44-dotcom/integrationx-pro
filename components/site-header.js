@@ -36,8 +36,8 @@ export default function SiteHeader() {
               <div className="absolute -inset-0.5 rounded-xl gradient-primary blur opacity-40 group-hover:opacity-70 transition" />
             </div>
             <div className="flex flex-col leading-none">
-              <span className="font-bold text-base tracking-tight">DevLearn <span className="gradient-text">Pro</span></span>
-              <span className="text-[10px] text-muted-foreground font-medium">Master IT Skills</span>
+              <span className="font-bold text-base tracking-tight">Integration<span className="gradient-text">X</span> Pro</span>
+              <span className="text-[10px] text-muted-foreground font-medium">SAP BTP & Integration Suite</span>
             </div>
           </Link>
 
