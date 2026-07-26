@@ -20,6 +20,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="min-h-screen antialiased">
         <Providers>{children}</Providers>
+        <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
       </body>
     </html>
   )

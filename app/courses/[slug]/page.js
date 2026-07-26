@@ -33,10 +33,66 @@ export default function CourseDetail({ params }) {
 
   const enroll = async () => {
     const uid = getUserId()
-    const r = await fetch('/api/enroll', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: uid, courseSlug: slug }) })
-    if (r.ok) {
-      toast.success('Enrolled! Redirecting to your learning space...')
-      setTimeout(() => router.push(`/learn/${slug}`), 700)
+    if (typeof window === 'undefined' || !window.Razorpay) {
+      toast.error('Payment system loading... please retry in a second.')
+      return
+    }
+    try {
+      toast.loading('Preparing your order...', { id: 'pay' })
+      const orderRes = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uid, courseSlug: slug }),
+      })
+      const orderData = await orderRes.json()
+      if (!orderRes.ok) {
+        toast.error(orderData.error || 'Could not create order', { id: 'pay' })
+        return
+      }
+      toast.dismiss('pay')
+      const rzp = new window.Razorpay({
+        key: orderData.key,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'IntegrationX Pro',
+        description: orderData.course.title.slice(0, 60),
+        image: orderData.course.thumbnail,
+        order_id: orderData.orderId,
+        theme: { color: '#7c3aed' },
+        prefill: { name: 'Learner', email: '', contact: '' },
+        notes: { userId: uid, courseSlug: slug },
+        handler: async function (response) {
+          toast.loading('Verifying payment...', { id: 'verify' })
+          const verifyRes = await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              userId: uid,
+              courseSlug: slug,
+            }),
+          })
+          const verifyData = await verifyRes.json()
+          if (verifyRes.ok && verifyData.success) {
+            toast.success('Payment successful! Redirecting to your course...', { id: 'verify' })
+            setEnrolled(true)
+            setTimeout(() => router.push(verifyData.redirectTo || `/learn/${slug}`), 800)
+          } else {
+            toast.error(verifyData.error || 'Verification failed. Please contact support.', { id: 'verify' })
+          }
+        },
+        modal: {
+          ondismiss: () => toast.info('Payment cancelled'),
+        },
+      })
+      rzp.on('payment.failed', function (resp) {
+        toast.error(`Payment failed: ${resp.error?.description || 'Please try again'}`)
+      })
+      rzp.open()
+    } catch (err) {
+      toast.error('Something went wrong. Please try again.', { id: 'pay' })
     }
   }
 

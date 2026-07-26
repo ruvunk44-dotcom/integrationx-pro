@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import crypto from 'crypto'
+import Razorpay from 'razorpay'
 import { getDb } from '@/lib/mongodb'
 import { COURSES, CATEGORIES, TESTIMONIALS, LIVE_BATCHES, FAQS, getCourseBySlug } from '@/lib/courses-data'
 
 const json = (data, status = 200) => NextResponse.json(data, { status })
+
+// Razorpay singleton
+let _razorpay = null
+const getRazorpay = () => {
+  if (!_razorpay) _razorpay = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET })
+  return _razorpay
+}
 
 async function handler(request, ctx) {
   const method = request.method
@@ -146,6 +155,62 @@ async function handler(request, ctx) {
       const items = await db.collection('wishlist').find({ userId }).toArray()
       const enriched = items.map(i => ({ courseSlug: i.courseSlug, course: getCourseBySlug(i.courseSlug), addedAt: i.addedAt }))
       return json({ wishlist: enriched })
+    }
+
+    // POST /api/payments/create-order  { userId, courseSlug }
+    if (method === 'POST' && seg === 'payments/create-order') {
+      const { userId, courseSlug } = await request.json()
+      if (!userId || !courseSlug) return json({ error: 'Missing fields' }, 400)
+      const course = getCourseBySlug(courseSlug)
+      if (!course) return json({ error: 'Course not found' }, 404)
+      const amountPaise = Math.round(course.price * 100)
+      const receipt = `u_${userId.slice(0, 8)}_${Date.now().toString().slice(-8)}`
+      const order = await getRazorpay().orders.create({
+        amount: amountPaise,
+        currency: 'INR',
+        receipt,
+        notes: { userId, courseSlug, courseTitle: course.title.slice(0, 40) },
+      })
+      return json({
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        course: { slug: course.slug, title: course.title, price: course.price, thumbnail: course.thumbnail },
+      })
+    }
+
+    // POST /api/payments/verify  { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, courseSlug }
+    if (method === 'POST' && seg === 'payments/verify') {
+      const body = await request.json()
+      const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, courseSlug } = body
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !userId || !courseSlug) return json({ error: 'Missing fields' }, 400)
+      const expected = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update(`${razorpay_order_id}|${razorpay_payment_id}`).digest('hex')
+      if (expected !== razorpay_signature) return json({ error: 'Invalid signature' }, 400)
+      const db = await getDb()
+      const course = getCourseBySlug(courseSlug)
+      // record payment
+      await db.collection('payments').updateOne(
+        { razorpayOrderId: razorpay_order_id },
+        { $set: { razorpayOrderId: razorpay_order_id, razorpayPaymentId: razorpay_payment_id, razorpaySignature: razorpay_signature, userId, courseSlug, courseTitle: course?.title, amountRupees: course?.price, status: 'captured', verifiedAt: new Date().toISOString() }, $setOnInsert: { id: uuidv4() } },
+        { upsert: true }
+      )
+      // enroll user
+      await db.collection('enrollments').updateOne(
+        { userId, courseSlug },
+        { $set: { userId, courseSlug, status: 'active', paidAt: new Date().toISOString() }, $setOnInsert: { id: uuidv4(), enrolledAt: new Date().toISOString(), progress: 0, completedLessons: [] } },
+        { upsert: true }
+      )
+      return json({ success: true, redirectTo: `/learn/${courseSlug}` })
+    }
+
+    // GET /api/payments?userId=xxx  \u2014 payment history
+    if (method === 'GET' && seg === 'payments') {
+      const userId = url.searchParams.get('userId')
+      if (!userId) return json({ payments: [] })
+      const db = await getDb()
+      const list = await db.collection('payments').find({ userId }).sort({ verifiedAt: -1 }).limit(50).toArray()
+      return json({ payments: list.map(p => ({ ...p, _id: undefined })) })
     }
 
     // POST /api/newsletter { email }
